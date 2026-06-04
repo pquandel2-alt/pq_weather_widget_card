@@ -1,5 +1,5 @@
 // =====================================================================
-//  Weather Widget Card v1.0.0
+//  Weather Widget Card v1.0.2
 // =====================================================================
 
 const WEATHER_ICONS = {
@@ -314,61 +314,16 @@ class WeatherWidgetCardEditor extends HTMLElement {
 
   _buildEntityPicker(container, currentValue, onChange) {
     container.innerHTML = '';
-    const hass = this._hass;
-    const entities = hass
-      ? Object.keys(hass.states).filter(e => e.startsWith('weather.')).sort()
-        .concat(Object.keys(hass.states).filter(e => !e.startsWith('weather.')).sort())
-      : [];
-
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:relative;';
-
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;border:1px solid var(--divider-color,#e0e0e0);border-radius:8px;background:var(--card-background-color,#fff);padding:6px 10px;';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = 'weather.* Entität suchen…';
-    input.style.cssText = 'flex:1;border:none;outline:none;background:transparent;color:var(--primary-text-color,#212121);font-size:13px;';
-
-    if (currentValue && hass?.states[currentValue]) {
-      input.value = hass.states[currentValue].attributes.friendly_name || currentValue;
-    } else {
-      input.value = currentValue || '';
-    }
-
-    row.appendChild(input);
-
-    const dropdown = document.createElement('div');
-    dropdown.style.cssText = 'position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;background:var(--card-background-color,#fff);border:1px solid var(--divider-color,#e0e0e0);border-radius:8px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.15);display:none;margin-top:2px;';
-
-    const showDropdown = (filter = '') => {
-      dropdown.innerHTML = '';
-      const lower = filter.toLowerCase().trim();
-      const filtered = entities.filter(e => {
-        const fn = (hass?.states[e]?.attributes.friendly_name || '').toLowerCase();
-        return !lower || fn.includes(lower) || e.toLowerCase().includes(lower);
-      }).slice(0, 100);
-      filtered.forEach(e => {
-        const fn = hass?.states[e]?.attributes.friendly_name || '';
-        const item = document.createElement('div');
-        item.style.cssText = 'padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--divider-color,#f0f0f0);';
-        item.innerHTML = `<div style="font-size:12px;font-weight:500">${fn || e}</div><div style="font-size:10px;color:var(--secondary-text-color,#727272)">${e}</div>`;
-        item.addEventListener('mousedown', ev => { ev.preventDefault(); input.value = fn || e; dropdown.style.display = 'none'; onChange(e); });
-        item.addEventListener('mouseover', () => item.style.background = 'var(--secondary-background-color,#f5f5f5)');
-        item.addEventListener('mouseout',  () => item.style.background = '');
-        dropdown.appendChild(item);
-      });
-      dropdown.style.display = filtered.length ? 'block' : 'none';
-    };
-
-    input.addEventListener('focus', () => showDropdown(input.value));
-    input.addEventListener('input', () => showDropdown(input.value));
-    input.addEventListener('blur',  () => setTimeout(() => { dropdown.style.display = 'none'; }, 150));
-
-    wrapper.appendChild(row);
-    wrapper.appendChild(dropdown);
-    container.appendChild(wrapper);
+    const picker = document.createElement('ha-entity-picker');
+    picker.hass = this._hass;
+    picker.value = currentValue || '';
+    picker.setAttribute('allow-custom-entity', '');
+    picker.includeDomains = ['weather'];
+    picker.style.cssText = 'display:block;width:100%;';
+    picker.addEventListener('value-changed', e => {
+      if (e.detail.value !== undefined) onChange(e.detail.value);
+    });
+    container.appendChild(picker);
   }
 
   _render() {
