@@ -1,3 +1,4 @@
+// @ts-check
 // =====================================================================
 //  Weather Widget Card v1.0.2
 // =====================================================================
@@ -51,6 +52,7 @@ class WeatherWidgetCard extends HTMLElement {
     this._lastKey = null;
   }
 
+  /** @param {LovelaceCardConfig} config */
   setConfig(config) {
     if (!config) throw new Error('Keine Konfiguration');
     this._config = {
@@ -68,6 +70,8 @@ class WeatherWidgetCard extends HTMLElement {
     delete this._lastKey;
   }
 
+  /** @param {HomeAssistant} hass */
+  /** @param {HomeAssistant} hass */
   set hass(hass) { this._hass = hass; this._render(); }
 
   _entityState() {
@@ -104,8 +108,7 @@ class WeatherWidgetCard extends HTMLElement {
 
   _fireMoreInfo(entityId) {
     if (!entityId) return;
-    const e = new Event('hass-more-info', { bubbles: true, composed: true });
-    e.detail = { entityId };
+    const e = new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId } });
     this.dispatchEvent(e);
   }
 
@@ -275,6 +278,7 @@ class WeatherWidgetCardEditor extends HTMLElement {
     this._rendered = false;
   }
 
+  /** @param {LovelaceCardConfig} config */
   setConfig(config) {
     this._config = {
       border_radius: 20, height: 65, show_humidity: true, show_wind: true,
@@ -285,6 +289,7 @@ class WeatherWidgetCardEditor extends HTMLElement {
     this._render();
   }
 
+  /** @param {HomeAssistant} hass */
   set hass(hass) {
     this._hass = hass;
     if (!this._rendered) this._render();
@@ -314,14 +319,14 @@ class WeatherWidgetCardEditor extends HTMLElement {
 
   _buildEntityPicker(container, currentValue, onChange) {
     container.innerHTML = '';
-    const picker = document.createElement('ha-entity-picker');
+    const picker = /** @type {HaEntityPicker} */ (document.createElement('ha-entity-picker'));
     picker.hass = this._hass;
     picker.value = currentValue || '';
     picker.setAttribute('allow-custom-entity', '');
     picker.includeDomains = ['weather'];
     picker.style.cssText = 'display:block;width:100%;';
     picker.addEventListener('value-changed', e => {
-      if (e.detail.value !== undefined) onChange(e.detail.value);
+      if ((/** @type {CustomEvent} */ (e)).detail.value !== undefined) onChange((/** @type {CustomEvent} */ (e)).detail.value);
     });
     container.appendChild(picker);
   }
@@ -441,31 +446,31 @@ class WeatherWidgetCardEditor extends HTMLElement {
     });
 
     ['show_humidity','show_wind'].forEach(id => {
-      root.getElementById(id)?.addEventListener('change', e => this._update(id, e.target.checked));
+      root.getElementById(id)?.addEventListener('change', e => this._update(id, (/** @type {HTMLInputElement} */ (e.target)).checked));
     });
 
     ['border_radius','icon_size','temp_size','label_size','info_size'].forEach(id => {
-      root.getElementById(id)?.addEventListener('change', e => this._update(id, parseInt(e.target.value)));
+      root.getElementById(id)?.addEventListener('change', e => this._update(id, parseInt((/** @type {HTMLInputElement} */ (e.target)).value)));
     });
 
     ['height','width'].forEach(id => {
       root.getElementById(id)?.addEventListener('change', e => {
-        const v = e.target.value.trim();
+        const v = (/** @type {HTMLInputElement} */ (e.target)).value.trim();
         const cfg = { ...this._config };
         if (v === '') { delete cfg[id]; } else { cfg[id] = parseInt(v); }
         this._config = cfg; this._emit();
       });
     });
 
-    root.getElementById('tap_type')?.addEventListener('change',  e => this._setActionType('tap_action',  e.target.value));
-    root.getElementById('hold_type')?.addEventListener('change', e => this._setActionType('hold_action', e.target.value));
+    root.getElementById('tap_type')?.addEventListener('change',  e => this._setActionType('tap_action',  (/** @type {HTMLInputElement} */ (e.target)).value));
+    root.getElementById('hold_type')?.addEventListener('change', e => this._setActionType('hold_action', (/** @type {HTMLInputElement} */ (e.target)).value));
 
-    root.getElementById('nav_path')?.addEventListener('change',      e => this._updateAction('tap_action',  'navigation_path', e.target.value));
-    root.getElementById('svc')?.addEventListener('change',           e => this._updateAction('tap_action',  'service',         e.target.value));
-    root.getElementById('url_path')?.addEventListener('change',      e => this._updateAction('tap_action',  'url_path',        e.target.value));
-    root.getElementById('hold_nav_path')?.addEventListener('change', e => this._updateAction('hold_action', 'navigation_path', e.target.value));
-    root.getElementById('hold_svc')?.addEventListener('change',      e => this._updateAction('hold_action', 'service',         e.target.value));
-    root.getElementById('hold_url_path')?.addEventListener('change', e => this._updateAction('hold_action', 'url_path',        e.target.value));
+    root.getElementById('nav_path')?.addEventListener('change',      e => this._updateAction('tap_action',  'navigation_path', (/** @type {HTMLInputElement} */ (e.target)).value));
+    root.getElementById('svc')?.addEventListener('change',           e => this._updateAction('tap_action',  'service',         (/** @type {HTMLInputElement} */ (e.target)).value));
+    root.getElementById('url_path')?.addEventListener('change',      e => this._updateAction('tap_action',  'url_path',        (/** @type {HTMLInputElement} */ (e.target)).value));
+    root.getElementById('hold_nav_path')?.addEventListener('change', e => this._updateAction('hold_action', 'navigation_path', (/** @type {HTMLInputElement} */ (e.target)).value));
+    root.getElementById('hold_svc')?.addEventListener('change',      e => this._updateAction('hold_action', 'service',         (/** @type {HTMLInputElement} */ (e.target)).value));
+    root.getElementById('hold_url_path')?.addEventListener('change', e => this._updateAction('hold_action', 'url_path',        (/** @type {HTMLInputElement} */ (e.target)).value));
   }
 }
 
