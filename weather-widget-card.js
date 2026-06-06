@@ -1,6 +1,6 @@
 // @ts-check
 // =====================================================================
-//  Weather Widget Card v1.0.3
+//  Weather Widget Card v1.0.4
 // =====================================================================
 
 const WEATHER_ICONS = {
@@ -50,6 +50,13 @@ class WeatherWidgetCard extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this._config = {};
     this._lastKey = null;
+    this._forecast = [];
+    this._forecastUnsub = null;
+    this._forecastSubKey = null; // "<entity>|<show_forecast>"
+  }
+
+  disconnectedCallback() {
+    if (this._forecastUnsub) { this._forecastUnsub(); this._forecastUnsub = null; }
   }
 
   /** @param {LovelaceCardConfig} config */
@@ -69,11 +76,37 @@ class WeatherWidgetCard extends HTMLElement {
       ...config,
     };
     delete this._lastKey;
+    this._updateForecastSubscription();
   }
 
   /** @param {HomeAssistant} hass */
-  /** @param {HomeAssistant} hass */
-  set hass(hass) { this._hass = hass; this._render(); }
+  set hass(hass) {
+    this._hass = hass;
+    this._updateForecastSubscription();
+    this._render();
+  }
+
+  _updateForecastSubscription() {
+    const entity = this._config.show_forecast ? (this._config.entity || '') : '';
+    const key = entity;
+    if (key === this._forecastSubKey) return;
+    this._forecastSubKey = key;
+
+    if (this._forecastUnsub) { this._forecastUnsub(); this._forecastUnsub = null; }
+    this._forecast = [];
+
+    if (!entity || !this._hass) return;
+
+    this._hass.connection.subscribeMessage(
+      (event) => {
+        this._forecast = event.forecast || [];
+        this._lastKey = null;
+        this._render();
+      },
+      { type: 'weather/subscribe_forecast', forecast_type: 'daily', entity_id: entity }
+    ).then(unsub => { this._forecastUnsub = unsub; })
+     .catch(() => { /* kein Forecast verfügbar */ });
+  }
 
   _entityState() {
     if (!this._hass || !this._config.entity) return null;
@@ -149,7 +182,7 @@ class WeatherWidgetCard extends HTMLElement {
     const label = WEATHER_LABELS[weatherState] || weatherState;
 
     const showForecast = this._config.show_forecast === true;
-    const forecast = showForecast ? (st?.attributes.forecast || []).slice(0, 4) : [];
+    const forecast = showForecast ? this._forecast.slice(0, 4) : [];
 
     const forecastKey = forecast.map(f => `${f.datetime}:${f.condition}:${f.temperature}`).join('|');
     const key = `${weatherState}|${temp}|${humidity}|${wind}|${forecastKey}`;
