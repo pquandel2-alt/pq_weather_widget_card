@@ -1,6 +1,6 @@
 // @ts-check
 // =====================================================================
-//  Weather Widget Card v1.0.2
+//  Weather Widget Card v1.0.3
 // =====================================================================
 
 const WEATHER_ICONS = {
@@ -60,6 +60,7 @@ class WeatherWidgetCard extends HTMLElement {
       height: 65,
       show_humidity: true,
       show_wind: true,
+      show_forecast: false,
       icon_size: 28,
       temp_size: 18,
       label_size: 10,
@@ -113,6 +114,7 @@ class WeatherWidgetCard extends HTMLElement {
   }
 
   getCardSize() {
+    if (this._config?.show_forecast) return 4;
     const h = this._config?.height;
     if (h) return Math.max(1, Math.ceil(h / 50));
     return 2;
@@ -126,6 +128,7 @@ class WeatherWidgetCard extends HTMLElement {
       height: 65,
       show_humidity: true,
       show_wind: true,
+      show_forecast: false,
       tap_action: { action: 'none' },
     };
   }
@@ -145,7 +148,11 @@ class WeatherWidgetCard extends HTMLElement {
     const icon  = WEATHER_ICONS[weatherState]  || '🌤️';
     const label = WEATHER_LABELS[weatherState] || weatherState;
 
-    const key = `${weatherState}|${temp}|${humidity}|${wind}`;
+    const showForecast = this._config.show_forecast === true;
+    const forecast = showForecast ? (st?.attributes.forecast || []).slice(0, 4) : [];
+
+    const forecastKey = forecast.map(f => `${f.datetime}:${f.condition}:${f.temperature}`).join('|');
+    const key = `${weatherState}|${temp}|${humidity}|${wind}|${forecastKey}`;
     if (key === this._lastKey) return;
     this._lastKey = key;
 
@@ -159,22 +166,38 @@ class WeatherWidgetCard extends HTMLElement {
     const showWind     = this._config.show_wind     !== false;
     const showInfo     = showHumidity || showWind;
 
+    const DAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    const forecastHtml = forecast.map(f => {
+      const d = new Date(f.datetime);
+      const dayName = DAY_NAMES[d.getDay()];
+      const fIcon = WEATHER_ICONS[f.condition] || '🌤️';
+      const fHi = f.temperature != null ? `${f.temperature}°` : '–';
+      const fLo = f.templow     != null ? `${f.templow}°`     : '';
+      return `
+        <div class="fc-day">
+          <span class="fc-name">${dayName}</span>
+          <span class="fc-icon">${fIcon}</span>
+          <span class="fc-hi">${fHi}</span>
+          ${fLo ? `<span class="fc-lo">${fLo}</span>` : ''}
+        </div>`;
+    }).join('');
+
     this.shadowRoot.innerHTML = `
       <style>
         :host {
           display: block;
           box-sizing: border-box;
-          ${h ? `height:${h}px;` : ''}
+          ${!showForecast && h ? `height:${h}px;` : ''}
         }
         .card {
           background: rgba(255,255,255,0.06);
           border: 1px solid rgba(255,255,255,0.15);
           border-radius: ${br}px;
-          height: 100%;
-          padding: 0 16px;
+          ${!showForecast ? 'height: 100%;' : ''}
+          padding: ${showForecast ? '10px 16px' : '0 16px'};
           display: grid;
           grid-template-columns: 40px 1fr ${showInfo ? '1fr' : ''};
-          grid-template-rows: 1fr;
+          grid-template-rows: ${showForecast ? `${h}px auto` : '1fr'};
           align-items: center;
           gap: 0 12px;
           box-sizing: border-box;
@@ -220,6 +243,38 @@ class WeatherWidgetCard extends HTMLElement {
           color: rgba(255,255,255,0.7);
           white-space: nowrap;
         }
+        .forecast {
+          grid-column: 1 / -1;
+          display: flex;
+          justify-content: space-around;
+          border-top: 1px solid rgba(255,255,255,0.1);
+          padding-top: 8px;
+          margin-top: 4px;
+        }
+        .fc-day {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          flex: 1;
+        }
+        .fc-name {
+          font-size: 11px;
+          color: rgba(255,255,255,0.5);
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+        }
+        .fc-icon { font-size: 20px; line-height: 1; }
+        .fc-hi {
+          font-size: 13px;
+          font-weight: 600;
+          color: rgba(255,255,255,0.9);
+        }
+        .fc-lo {
+          font-size: 11px;
+          color: rgba(255,255,255,0.45);
+        }
         .empty { font-size:12px; color:rgba(255,255,255,0.3); grid-column:1/-1; text-align:center; }
       </style>
       <div class="card" id="card">
@@ -236,6 +291,7 @@ class WeatherWidgetCard extends HTMLElement {
               ${showHumidity ? `<span class="info-row">💧 ${humidity}%</span>` : ''}
               ${showWind     ? `<span class="info-row">💨 ${wind} ${windUnit}</span>` : ''}
             </div>` : ''}
+            ${showForecast && forecast.length > 0 ? `<div class="forecast">${forecastHtml}</div>` : ''}
           `
         }
       </div>
@@ -281,7 +337,7 @@ class WeatherWidgetCardEditor extends HTMLElement {
   /** @param {LovelaceCardConfig} config */
   setConfig(config) {
     this._config = {
-      border_radius: 20, height: 65, show_humidity: true, show_wind: true,
+      border_radius: 20, height: 65, show_humidity: true, show_wind: true, show_forecast: false,
       icon_size: 28, temp_size: 18, label_size: 10, info_size: 12,
       tap_action: { action: 'none' },
       ...config,
@@ -379,6 +435,10 @@ class WeatherWidgetCardEditor extends HTMLElement {
           <label>Wind anzeigen</label>
           <input type="checkbox" id="show_wind" ${c.show_wind !== false ? 'checked' : ''} />
         </div>
+        <div class="toggle-row">
+          <label>4-Tage-Vorschau anzeigen</label>
+          <input type="checkbox" id="show_forecast" ${c.show_forecast ? 'checked' : ''} />
+        </div>
 
         <div class="section">Größe</div>
         <div class="row">
@@ -445,7 +505,7 @@ class WeatherWidgetCardEditor extends HTMLElement {
       this._config = { ...this._config, entity: val }; this._emit();
     });
 
-    ['show_humidity','show_wind'].forEach(id => {
+    ['show_humidity','show_wind','show_forecast'].forEach(id => {
       root.getElementById(id)?.addEventListener('change', e => this._update(id, (/** @type {HTMLInputElement} */ (e.target)).checked));
     });
 
