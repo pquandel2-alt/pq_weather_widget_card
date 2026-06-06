@@ -1,6 +1,6 @@
 // @ts-check
 // =====================================================================
-//  Weather Widget Card v1.0.4
+//  Weather Widget Card v1.0.5
 // =====================================================================
 
 const WEATHER_ICONS = {
@@ -76,7 +76,8 @@ class WeatherWidgetCard extends HTMLElement {
       ...config,
     };
     delete this._lastKey;
-    this._updateForecastSubscription();
+    // Key zurücksetzen, damit set hass() die Subscription neu aufbaut
+    this._forecastSubKey = null;
   }
 
   /** @param {HomeAssistant} hass */
@@ -88,9 +89,8 @@ class WeatherWidgetCard extends HTMLElement {
 
   _updateForecastSubscription() {
     const entity = this._config.show_forecast ? (this._config.entity || '') : '';
-    const key = entity;
-    if (key === this._forecastSubKey) return;
-    this._forecastSubKey = key;
+    if (entity === this._forecastSubKey) return;
+    this._forecastSubKey = entity;
 
     if (this._forecastUnsub) { this._forecastUnsub(); this._forecastUnsub = null; }
     this._forecast = [];
@@ -105,7 +105,13 @@ class WeatherWidgetCard extends HTMLElement {
       },
       { type: 'weather/subscribe_forecast', forecast_type: 'daily', entity_id: entity }
     ).then(unsub => { this._forecastUnsub = unsub; })
-     .catch(() => { /* kein Forecast verfügbar */ });
+     .catch(() => {
+       // Fallback: attributes.forecast (ältere Integrationen / DWD)
+       const st = this._hass?.states[entity];
+       this._forecast = st?.attributes.forecast || [];
+       this._lastKey = null;
+       this._render();
+     });
   }
 
   _entityState() {
@@ -182,7 +188,10 @@ class WeatherWidgetCard extends HTMLElement {
     const label = WEATHER_LABELS[weatherState] || weatherState;
 
     const showForecast = this._config.show_forecast === true;
-    const forecast = showForecast ? this._forecast.slice(0, 4) : [];
+    const forecastData = this._forecast.length > 0
+      ? this._forecast
+      : (st?.attributes.forecast || []);
+    const forecast = showForecast ? forecastData.slice(0, 4) : [];
 
     const forecastKey = forecast.map(f => `${f.datetime}:${f.condition}:${f.temperature}`).join('|');
     const key = `${weatherState}|${temp}|${humidity}|${wind}|${forecastKey}`;
